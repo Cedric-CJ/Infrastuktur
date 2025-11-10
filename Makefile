@@ -1,4 +1,4 @@
-.PHONY: help install-deps deploy-dev deploy-prod destroy-dev destroy-prod fmt validate clean backend
+.PHONY: help install-deps deploy-dev deploy-prod destroy-dev destroy-prod fmt validate clean backend check-costs
 
 help: ## Zeigt diese Hilfe an
 	@echo "AWS Streaming MVP - Terraform Commands"
@@ -7,6 +7,9 @@ help: ## Zeigt diese Hilfe an
 
 backend: ## Erstellt S3-Bucket und DynamoDB-Tabelle für Remote State
 	@./scripts/create-backend.sh
+
+check-costs: ## Überprüft AWS Free Tier Nutzung und Kosten
+	@./scripts/check-costs.sh
 
 install-deps: ## Installiert Lambda-Dependencies
 	@echo "📦 Installing Lambda dependencies..."

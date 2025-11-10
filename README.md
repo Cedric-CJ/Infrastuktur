@@ -221,3 +221,64 @@ Provide `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` as repository
 4. Add a presigned-upload workflow so creators can push their own videos.
 
 Ping me with your preferred project/env identifiers if you want those defaults baked in.
+
+ Wo du die fehlenden Infos bekommst:
+AWS Account kostenlos erstellen:
+
+Gehe zu: https://aws.amazon.com/free/
+"Create a free account" → Kostenlose Registrierung
+Kreditkarte wird benötigt (aber nicht belastet bei Free Tier)
+AWS Credentials (Access Keys):
+
+Gehe zu: https://console.aws.amazon.com/iam/
+Erstelle neuen IAM User: streamflix-deploy
+Weise diese Policies zu:
+AmazonS3FullAccess
+AWSLambda_FullAccess
+AmazonDynamoDBFullAccess
+AmazonAPIGatewayAdministrator
+IAMFullAccess
+CloudWatchLogsFullAccess
+Erstelle Access Key → Speichere ID + Secret sicher!
+AWS CLI installieren:
+
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install
+aws configure  # Gib deine Credentials ein
+
+ Alles kostenlos im AWS Free Tier:
+✅ Konfiguration optimiert für Free Tier:
+
+Lambda: 128MB RAM (Minimum), 30s Timeout
+DynamoDB: Pay-per-Request (bereits konfiguriert)
+Keine zusätzlichen Services (CloudFront, etc.)
+📊 Free Tier Limits (EU-Central-1):
+
+S3: 5GB Storage + 20.000 GET + 2.000 PUT Requests
+Lambda: 1M Requests + 400.000 GB-Sekunden
+API Gateway: 1M Requests
+DynamoDB: 25GB + 200M Requests
+CloudWatch Logs: 5GB
+🚀 Deployment (kostenlos):
+# 1. Remote State Backend erstellen
+make backend
+
+# 2. JWT Secret setzen
+export TF_VAR_jwt_secret=$(openssl rand -base64 32)
+
+# 3. Deployen
+make deploy-dev
+
+# 4. Kosten überwachen
+make check-costs
+ Dokumentation:
+AWS_FREE_SETUP.md - Vollständige Anleitung
+README.md - Projekt-Übersicht
+QUICKSTART.md - Schnellstart
+⚠️ Wichtig für kostenlos bleiben:
+Überwache Billing: https://console.aws.amazon.com/billing/
+Aktiviere Free Tier Alerts
+Lösche alles mit: make destroy-dev
+Halte Videos < 5GB
+Limitiere Requests auf < 1000/Tag

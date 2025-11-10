@@ -34,6 +34,10 @@ resource "aws_lambda_function" "auth_signup" {
   filename      = data.archive_file.auth_signup.output_path
   source_code_hash = data.archive_file.auth_signup.output_base64sha256
 
+  # Free Tier Optimization
+  memory_size = 128  # Minimum for Free Tier
+  timeout     = 30   # 30 seconds max
+
   environment {
     variables = {
       USERS_TABLE = var.users_table_name
@@ -48,6 +52,10 @@ resource "aws_lambda_function" "auth_login" {
   runtime       = "nodejs20.x"
   filename      = data.archive_file.auth_login.output_path
   source_code_hash = data.archive_file.auth_login.output_base64sha256
+
+  # Free Tier Optimization
+  memory_size = 128  # Minimum for Free Tier
+  timeout     = 30   # 30 seconds max
 
   environment {
     variables = {
@@ -65,6 +73,10 @@ resource "aws_lambda_function" "comments_write" {
   filename      = data.archive_file.comments_write.output_path
   source_code_hash = data.archive_file.comments_write.output_base64sha256
 
+  # Free Tier Optimization
+  memory_size = 128  # Minimum for Free Tier
+  timeout     = 30   # 30 seconds max
+
   environment {
     variables = {
       COMMENTS_TABLE = var.comments_table_name
@@ -81,6 +93,10 @@ resource "aws_lambda_function" "reactions_write" {
   runtime       = "nodejs20.x"
   filename      = data.archive_file.reactions_write.output_path
   source_code_hash = data.archive_file.reactions_write.output_base64sha256
+
+  # Free Tier Optimization
+  memory_size = 128  # Minimum for Free Tier
+  timeout     = 30   # 30 seconds max
 
   environment {
     variables = {
