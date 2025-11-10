@@ -1,0 +1,12 @@
+{
+  "name": "comments-write",
+  "version": "1.0.0",
+  "description": "Lambda handler for writing comments",
+  "main": "handler.js",
+  "type": "commonjs",
+  "scripts": {},
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.501.0",
+    "jsonwebtoken": "^9.0.2"
+  }
+}

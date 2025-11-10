@@ -1,0 +1,11 @@
+{
+  "name": "auth-signup",
+  "version": "1.0.0",
+  "description": "Lambda handler for MVP signup flow",
+  "main": "handler.js",
+  "type": "commonjs",
+  "scripts": {},
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.501.0"
+  }
+}

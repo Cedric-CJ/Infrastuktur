@@ -1,0 +1,14 @@
+.terraform/
+terraform.tfstate
+terraform.tfstate.*
+*.zip
+node_modules/
+package-lock.json
+.DS_Store
+dist/
+coverage/
+*.log
+.env
+.envrc
+*.tfvars
+!*.example.tfvars

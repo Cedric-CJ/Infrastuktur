@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Streaming MVP</title>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+  <main class="container">
+    <h1>Streaming MVP</h1>
+
+    <section>
+      <h2>Player</h2>
+      <video id="player" controls width="640" src="REPLACE_WITH_S3_VIDEO_URL"></video>
+      <!-- Example: http://streamflix-site-dev-xyz.s3-website.eu-central-1.amazonaws.com/video.mp4 -->
+    </section>
+
+    <section id="auth">
+      <h2>Login (Demo)</h2>
+      <input id="email" placeholder="email"/>
+      <input id="password" type="password" placeholder="password"/>
+      <input id="user_id" placeholder="user_id (vom Signup)"/>
+      <div class="actions">
+        <button onclick="signup()">Sign Up</button>
+        <button onclick="login()">Login</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Neuer Kommentar</h2>
+      <input id="content_id" placeholder="content id"/>
+      <input id="text" placeholder="dein Kommentar"/>
+      <div class="actions">
+        <button onclick="sendComment()">Senden</button>
+      </div>
+      <pre id="out"></pre>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

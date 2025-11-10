@@ -1,0 +1,10 @@
+# Streamflix Prod Environment Variables
+# Copy to terraform.tfvars and adjust values
+
+project    = "streamflix"
+env        = "prod"
+aws_region = "eu-central-1"
+
+# JWT Secret: Set via environment variable TF_VAR_jwt_secret or AWS Secrets Manager
+# Generate with: openssl rand -base64 32
+# jwt_secret = "your-secret-here"

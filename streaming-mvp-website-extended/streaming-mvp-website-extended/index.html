@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Streaming MVP – Demo</title>
+  <style>
+    :root { --br: 14px; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 2rem auto; max-width: 1000px; line-height: 1.55; }
+    h1 { margin-bottom: .25rem; }
+    .grid { display: grid; gap: 1rem; grid-template-columns: 1fr; }
+    @media (min-width: 960px) { .grid { grid-template-columns: 1.1fr .9fr; } }
+    .card { border: 1px solid #e5e7eb; border-radius: var(--br); padding: 1rem 1.25rem; }
+    input, button, textarea { font: inherit; }
+    input, textarea { width: 100%; padding: .6rem .7rem; border-radius: 10px; border: 1px solid #e5e7eb; }
+    button { cursor: pointer; border-radius: 10px; border: 1px solid #e5e7eb; padding: .6rem 1rem; }
+    .row { display: flex; gap: .5rem; align-items: center; }
+    .muted { color: #6b7280; font-size: .95rem; }
+    .error { color: #b91c1c; }
+    pre { white-space: pre-wrap; }
+    .chip { display: inline-block; padding: .1rem .5rem; border: 1px solid #e5e7eb; border-radius: 999px; font-size: .8rem; }
+    .list { margin-top: .5rem; display: grid; gap: .5rem; }
+    .comment { border: 1px dashed #e5e7eb; border-radius: 10px; padding: .5rem .75rem; }
+    .stack { display: grid; gap: .5rem; }
+  </style>
+  <script defer src="./app.js"></script>
+</head>
+<body>
+  <h1>🎬 Streaming MVP</h1>
+  <p class="muted">Statisches Frontend + API Gateway + Lambda + DynamoDB (Kommentare). Video über EC2 oder S3.</p>
+
+  <div class="grid">
+    <div class="stack">
+      <div class="card">
+        <h2>1) Login (Stub)</h2>
+        <p class="muted">[Außerhalb des Skripts] UI-Stubs, keine echte Sicherheit. Später ersetzen.</p>
+        <div class="row">
+          <input id="user" placeholder="Nutzername" />
+          <input id="pass" type="password" placeholder="Passwort" />
+          <button id="login">Login</button>
+        </div>
+        <p id="loginStatus" class="muted"></p>
+      </div>
+
+      <div class="card">
+        <h2>2) Kommentar erstellen</h2>
+        <p class="muted">Sendet <code>?key1=...</code> an eure REST-API (API Gateway → Lambda → DynamoDB).</p>
+        <textarea id="comment" rows="3" placeholder="Dein Kommentar..."></textarea>
+        <div class="row" style="margin-top:.5rem;">
+          <button id="send">Kommentar senden</button>
+          <span id="sendStatus" class="muted"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>3) Kommentare anzeigen (Demo)</h2>
+        <p class="muted">Optionaler Endpunkt <code>GET /comments</code> – ansonsten nur lokale Demo.</p>
+        <div class="row">
+          <button id="reload">Neu laden</button>
+          <span id="loadStatus" class="muted"></span>
+        </div>
+        <div id="comments" class="list"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>4) Video</h2>
+      <p class="muted">Setzt <code>VIDEO_URL</code> in <code>app.js</code> oder gebt unten eine URL an (EC2 oder S3).</p>
+      <video id="player" controls width="100%" poster="" src=""></video>
+      <div class="row" style="margin-top:.5rem;">
+        <input id="videoUrl" placeholder="https://<EC2-ODER-S3>/video.mp4" />
+        <button id="setVideo">Video setzen</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
