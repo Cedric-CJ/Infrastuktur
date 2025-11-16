@@ -1,0 +1,64 @@
+#!/bin/bash
+set -xeuo pipefail
+
+exec > >(tee /var/log/user-data.log | logger -t user-data -s 2>/dev/console) 2>&1
+
+dnf update -y
+dnf install -y nginx awscli
+systemctl enable nginx
+
+cat <<'EOF' >/usr/local/bin/streamflix-sync.sh
+#!/bin/bash
+set -euo pipefail
+
+aws s3 sync s3://${frontend_bucket}/frontend /usr/share/nginx/html --delete
+sed -i "s|REPLACE_WITH_API_BASE_URL|${api_url}|g" /usr/share/nginx/html/app.js || true
+sed -i "s|REPLACE_WITH_S3_VIDEO_URL|${video_url}|g" /usr/share/nginx/html/index.html || true
+chown -R nginx:nginx /usr/share/nginx/html
+EOF
+
+chmod +x /usr/local/bin/streamflix-sync.sh
+/usr/local/bin/streamflix-sync.sh
+
+cat <<'EOF' >/etc/systemd/system/streamflix-sync.service
+[Unit]
+Description=Sync frontend assets from S3 to Nginx
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/streamflix-sync.sh
+EOF
+
+cat <<'EOF' >/etc/systemd/system/streamflix-sync.timer
+[Unit]
+Description=Run streamflix sync every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Unit=streamflix-sync.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now streamflix-sync.timer
+
+cat <<'EOF' >/etc/nginx/conf.d/streamflix.conf
+server {
+    listen 80 default_server;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location / {
+        try_files $uri /index.html;
+    }
+}
+EOF
+
+rm -f /etc/nginx/conf.d/default.conf || true
+systemctl restart nginx

@@ -1,0 +1,16 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Import einer bestehenden EC2-Instanz
+
+Resources:
+  MyInstance:
+    Type: AWS::EC2::Instance
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      ImageId: ami-0125fee8356151571
+      InstanceType: t2.micro
+      SecurityGroupIds:
+        - sg-0b99fccbb3a1f5c74
+      Tags:
+        - Key: Name
+          Value: CFN-EC2-t2micro

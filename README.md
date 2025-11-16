@@ -6,14 +6,17 @@ Minimal but realistic Terraform stack to host the streaming MVP described in the
 - **API Gateway (REST)** fronting **Lambda** handlers for auth/comments/reactions.
 - **DynamoDB** tables for users, comments, reactions, logs.
 - **IAM** role + policy for the Lambdas.
-- **GitHub Actions** workflow that runs init/fmt/validate/plan on every push/PR.
+- **VPC + public subnets** including routing + security groups.
+- **Application Load Balancer + Auto Scaling Group** that runs an Nginx based web tier and keeps it synced with the S3 assets every 5 minutes.
+- **AWS CodeBuild/CodePipeline ready buildspec** that installs Terraform, runs `terraform apply`, and pushes the latest frontend bundle to S3 whenever AWS CodePipeline pulls from GitHub.
 
 ```
 aws-streaming-mvp-iac/
 |-- terraform/envs/{dev,prod}/
-|-- terraform/modules/{s3_static_site,dynamodb,iam_lambda,api_lambda}/
+|-- terraform/modules/{s3_static_site,dynamodb,iam_lambda,api_lambda,networking,security,alb,autoscaling}/
 |-- lambdas/{auth_signup,auth_login,comments_write,reactions_write}/
 |-- frontend/{index.html,app.js,styles.css}
+|-- buildspec.yml
 `-- .github/workflows/terraform.yml
 ```
 
@@ -80,32 +83,25 @@ make outputs-dev
 
 ### 5. Upload Frontend & Video
 
+The CodeBuild pipeline (see below) already runs `aws s3 sync frontend/ s3://<bucket>/ --delete` after every `terraform apply`.  
+To test locally you can still push assets manually:
+
 ```bash
-# Get bucket name from outputs
 BUCKET=$(cd terraform/envs/dev && terraform output -raw video_bucket)
-
-# Upload frontend files
-aws s3 sync frontend/ s3://$BUCKET/ --exclude "*.md"
-
-# Upload demo video
-aws s3 cp path/to/your-video.mp4 s3://$BUCKET/demo-video.mp4
+aws s3 sync frontend/ s3://$BUCKET/ --exclude "*.md" --delete
+aws s3 cp demo-video.mp4 s3://$BUCKET/demo-video.mp4
 ```
 
-### 6. Configure Frontend URLs
+### 6. Configure Frontend URLs (automatic)
 
-Update `frontend/app.js` with your API URL:
-```javascript
-const API = "https://YOUR-API-ID.execute-api.eu-central-1.amazonaws.com/dev";
-```
+The EC2 user data replaces `REPLACE_WITH_API_BASE_URL` and `REPLACE_WITH_S3_VIDEO_URL` with the Terraform outputs during every sync, so you no longer have to edit the files by hand.  
+If you need the raw values:
 
-Update `frontend/index.html` with your video URL:
-```html
-<video src="http://YOUR-BUCKET.s3-website.eu-central-1.amazonaws.com/demo-video.mp4">
-```
-
-Get these URLs from terraform outputs:
 ```bash
-make outputs-dev
+cd terraform/envs/dev
+terraform output api_base_url
+terraform output video_bucket
+terraform output load_balancer_dns
 ```
 
 ## Quick Commands
@@ -118,6 +114,35 @@ make deploy-dev     # Deploy dev environment
 make outputs-dev    # Show deployment URLs
 make destroy-dev    # Destroy infrastructure
 ```
+
+## Architecture Overview
+
+- **Edge / Clients** – Users hit the Application Load Balancer DNS that Terraform outputs. Admins can still SSH (port 22) thanks to the `admin_cidr` variable.
+- **Application tier** – An Auto Scaling Group (min 2 instances) launches Amazon Linux 2023, installs Nginx, and runs a systemd timer that syncs the latest frontend build from S3 every 5 minutes. Placeholders for API + video URLs are replaced during each sync.
+- **API tier** – API Gateway exposes `/auth/*`, `/comments`, `/reactions` and invokes the Lambda functions stored under `lambdas/`.
+- **State** – DynamoDB tables hold users, comments, reactions, and log entries. IAM policies restrict each Lambda to the tables it needs.
+- **Static assets** – One S3 bucket stores `frontend/` plus your demo video. The EC2 tier serves the synced assets via the load balancer, but the bucket also exposes a website endpoint.
+
+## AWS Pipeline (CodePipeline + CodeBuild)
+
+The repository ships with `buildspec.yml` so the AWS side only wires services together:
+
+1. **Create a CodeStar connection** to GitHub (Developer Tools → Connections) and authorize your repo/branch.
+2. **Provision a CodeBuild project**:
+   - Runtime: `aws/codebuild/standard:7.0` or newer so Node 20 is available.
+   - Source: GitHub connection from step 1.
+   - Environment variables:  
+     `TF_VAR_jwt_secret` (secure, value from `openssl rand -base64 32`), `AWS_REGION=eu-central-1` if you deploy elsewhere.  
+   - Service role needs: `AmazonS3FullAccess`, `AWSLambda_FullAccess`, `AmazonDynamoDBFullAccess`, `AmazonAPIGatewayAdministrator`, `AmazonEC2FullAccess`, `ElasticLoadBalancingFullAccess`, `AutoScalingFullAccess`, `CloudWatchLogsFullAccess`, plus `iam:PassRole` for the Lambda + EC2 instance profiles.
+3. **Create a CodePipeline** with:
+   - Source stage → GitHub (CodeStar connection).
+   - Build stage → the CodeBuild project above. No Deploy stage is needed because Terraform + the `aws s3 sync` inside `buildspec.yml` already handle deployments.
+4. Whenever CodePipeline runs, CodeBuild:
+   - Installs Terraform 1.7.5 and Lambda `node_modules`.
+   - Executes `terraform apply` in `terraform/envs/dev`.
+   - Reads the outputs (`video_bucket`, `api_base_url`, `load_balancer_dns`) and syncs `frontend/` into the bucket so the EC2 sync timer can pick up the new build automatically.
+
+> Tip: attach the same remote-state bucket/table credentials that you use locally so CodeBuild shares the state file.
 
 ## Configuration
 
@@ -174,10 +199,20 @@ TF_VAR_jwt_secret        - JWT signing secret (optional)
    - `api_base_url`
    - `website_endpoint`
    - `video_bucket`
+   - `load_balancer_dns`
+   - `autoscaling_group`
 
-6. **Upload assets**  
-   - Push your demo video plus `frontend/*` into the emitted bucket.
-   - Replace the placeholders in `frontend/index.html` and `frontend/app.js` with the real bucket/API URLs.
+6. **Upload assets (optional)**  
+   - The CodeBuild pipeline and EC2 sync timer already keep `/usr/share/nginx/html` in sync with S3.
+   - You only need to upload a new demo video manually (default key `demo-video.mp4`).
+
+## Functional Highlights
+
+- **Account creation & login** – `auth_signup` hashes credentials with `scrypt`, `auth_login` validates them and mints a JWT signed with the secret you pass via `TF_VAR_jwt_secret`.
+- **Video playback** – The frontend pulls `index.html`, `styles.css`, `app.js`, and your demo video via Nginx behind the load balancer. The placeholder URLs are replaced during the EC2 sync process so browsers always call the correct API.
+- **Community interactions** – Authenticated users can create comments and reactions that land in DynamoDB tables with pay-per-request billing.
+- **Operational visibility** – Every Lambda writes lightweight log entries to the `logs` table so you can troubleshoot flows without CloudWatch.
+- **Automated delivery** – CodePipeline → CodeBuild triggers Terraform, provisions the VPC/ALB/ASG/API, and syncs the frontend bundle without manual steps.
 
 ## Lambdas (Node.js)
 

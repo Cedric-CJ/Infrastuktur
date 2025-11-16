@@ -1,0 +1,50 @@
+version: 0.2
+
+env:
+  variables:
+    TF_IN_AUTOMATION: "true"
+    TERRAFORM_VERSION: "1.7.5"
+    AWS_REGION: "eu-central-1"
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+    commands:
+      - echo "Installing Terraform ${TERRAFORM_VERSION}"
+      - curl -sLo terraform.zip https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip
+      - unzip -o terraform.zip
+      - mv terraform /usr/local/bin/terraform
+      - terraform -version
+      - rm -f terraform.zip
+      - echo "Preparing Lambda dependencies"
+      - make install-deps
+  pre_build:
+    commands:
+      - echo "Initializing Terraform in terraform/envs/dev"
+      - pushd terraform/envs/dev
+      - terraform init -input=false
+      - terraform fmt -check
+      - terraform validate
+      - popd
+  build:
+    commands:
+      - echo "Applying Terraform changes"
+      - pushd terraform/envs/dev
+      - terraform apply -input=false -auto-approve
+      - export FRONTEND_BUCKET=$(terraform output -raw video_bucket)
+      - export API_URL=$(terraform output -raw api_base_url)
+      - export LOAD_BALANCER=$(terraform output -raw load_balancer_dns)
+      - popd
+      - echo "Syncing frontend to bucket ${FRONTEND_BUCKET}"
+      - aws s3 sync frontend/ s3://${FRONTEND_BUCKET}/ --delete --exclude "*.md"
+  post_build:
+    commands:
+      - echo "Terraform outputs"
+      - echo "Frontend bucket: ${FRONTEND_BUCKET}"
+      - echo "API URL: ${API_URL}"
+      - echo "Load balancer: ${LOAD_BALANCER}"
+
+artifacts:
+  files:
+    - '**/*'

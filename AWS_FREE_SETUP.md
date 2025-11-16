@@ -1,117 +1,92 @@
-# 🚀 AWS FREE TIER SETUP GUIDE
 
-## 1. AWS Account erstellen (kostenlos)
+0. Voraussetzungen
 
-Gehe zu: https://aws.amazon.com/free/
-- Klicke "Create a free account"
-- Folge den Schritten
-- Bestätige mit Kreditkarte (wird nicht belastet bei Free Tier)
+Lokale Tools: Git, Node.js ≥ 20, AWS CLI, Terraform ≥ 1.6 (nur für lokale Tests).
+AWS Konto mit IAM-User der die Services verwalten darf (mindestens: S3, IAM, Lambda, API Gateway, DynamoDB, EC2, ELB, Auto Scaling, CloudWatch, CloudWatch Logs, CodeBuild, CodePipeline, SSM). Für produktive Accounts lieber einzelne, minimal berechtigte Rollen.
+1. Remote-State-Backend vorbereiten (einmalig)
 
-## 2. AWS Credentials bekommen
+Lege eine S3‑Bucket + DynamoDB-Tabelle für Terraform-States an (oder nutze make backend, das tf-state-streamflix-itinfra2025 und tf-locks-streamflix erzeugt).
+Prüfe in terraform/envs/dev/backend.tf und terraform/envs/prod/backend.tf, dass Bucket, Key, Region, Tabelle stimmen. Ohne korrektes Backend riskierst du Divergenzen zwischen lokal und AWS.
+2. Repository konfigurieren
 
-### Option A: AWS Console (empfohlen für Anfänger)
-1. Gehe zu: https://console.aws.amazon.com/iam/
-2. Klicke "Users" → "Create user"
-3. Username: `streamflix-deploy`
-4. Aktiviere "Provide user access to the AWS Management Console"
-5. Setze ein starkes Passwort
-6. Klicke "Next"
-7. Wähle "Attach policies directly"
-8. Suche und wähle:
-   - `AmazonS3FullAccess`
-   - `AWSLambda_FullAccess`
-   - `AmazonDynamoDBFullAccess`
-   - `AmazonAPIGatewayAdministrator`
-   - `IAMFullAccess`
-   - `CloudWatchLogsFullAccess`
-9. Erstelle User
-10. Gehe zu "Security credentials" → "Create access key"
-11. Wähle "Command Line Interface (CLI)"
-12. Erstelle Access Key → **Speichere die Credentials sicher!**
+Passe terraform/envs/dev/terraform.tfvars.example an, kopiere nach terraform.tfvars. Wichtige Punkte:
+admin_cidr unbedingt auf deine öffentliche IP/32 begrenzen, damit SSH (Port 22) nur dir offen steht.
+Setze instance_key_name, falls du dich per SSH auf die EC2s verbinden möchtest (Key Pair vorher in EC2-Konsole erzeugen).
+Optional: video_object_key ändern, falls das Demo-Video nicht demo-video.mp4 heißen soll.
+Dasselbe für prod, ggf. mit anderen CIDRs oder Instanzgrößen.
+3. Secrets festlegen
 
-### Option B: AWS CLI (für Entwickler)
-```bash
-# Installiere AWS CLI
-curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-unzip awscliv2.zip
-sudo ./aws/install
+Erzeuge TF_VAR_jwt_secret mit openssl rand -base64 32.
+Lege dieses Secret lokal als Environment-Variable und in CodeBuild als verschlüsseltes Environment-Secret an. Gib es niemals in Dateien oder Logs aus.
+Falls du langfristig arbeiten willst, speichere das Secret künftig in AWS Secrets Manager und mappe es als TF_VAR_jwt_secret.
+4. Lambda-Dependencies installieren
 
-# Konfiguriere
-aws configure
-# Eingabe:
-# AWS Access Key ID: [dein-access-key]
-# AWS Secret Access Key: [dein-secret-key]
-# Default region name: eu-central-1
-# Default output format: json
-```
+Lokal: make install-deps (installiert node_modules in jedem Lambda-Verzeichnis). Das gleiche macht später der CodeBuild-Job automatisch.
+5. Manuelle Erstvalidierung (optional aber empfohlen)
 
-## 3. Free Tier Limits beachten
+terraform -chdir=terraform/envs/dev init
+terraform -chdir=terraform/envs/dev plan
+Prüfe, dass keine destruktiven Änderungen geplant sind und alle neuen Module (VPC/ALB/ASG) angezeigt werden.
+Noch nicht apply ausführen, wenn du alles in CodePipeline deployen willst; ansonsten terraform ... apply erlaubt dir erste Smoke-Tests.
+6. Demo-Video bereitstellen
 
-### ✅ Deine Konfiguration bleibt kostenlos:
-- **S3**: 5GB Speicher + 20.000 GET + 2.000 PUT Requests
-- **Lambda**: 1M Requests + 400.000 GB-Sekunden
-- **API Gateway**: 1M Requests
-- **DynamoDB**: 25GB + 200M Requests
-- **CloudWatch Logs**: 5GB
+Lade dein Testvideo (max. ~5 GB für Free Tier) in frontend/ oder an anderer Stelle hoch. Nach dem ersten Terraform-Apply liefert dir terraform output -raw video_bucket den Namen des S3-Buckets. aws s3 cp demo-video.mp4s3://BUCKET/demo-video.mp4.
+Jede Änderung am Video musst du weiterhin manuell hochladen; die Timer-Synchronisation kopiert, löscht und ersetzt nur Dateien aus frontend/.
+7. CodeStar-Verbindung zu GitHub
 
-### ⚠️ Kosten vermeiden:
-- **Keine Videos > 5GB** hochladen
-- **Keine 1000+ Requests** pro Monat
-- **Keine Provisioned Throughput** in DynamoDB
-- **Keine zusätzlichen Services** (CloudFront, etc.)
+AWS Console → Developer Tools → Connections.
+„Create connection“, Provider „GitHub“, authentifizieren, Repository auswählen.
+Namen merken (z. B. streamflix-github).
+8. CodeBuild-Projekt anlegen
 
-## 4. Deployment (kostenlos)
+AWS Console → CodeBuild → „Create build project“.
+Source: GitHub (über Connection), Branch main (oder was ihr nutzt).
+Environment:
+Image: aws/codebuild/standard:7.0.
+Compute type: BUILD_GENERAL1_SMALL reicht.
+Service Role: neue Rolle mit folgenden Richtlinien (oder maßgeschneidert): AmazonS3FullAccess, AWSLambda_FullAccess, AmazonDynamoDBFullAccess, AmazonAPIGatewayAdministrator, AmazonEC2FullAccess, ElasticLoadBalancingFullAccess, AutoScalingFullAccess, CloudWatchLogsFullAccess. Zusätzlich muss dieselbe Rolle iam:PassRole auf die Lambda-Execution-Role (streamflix-*-lambda-role) sowie die EC2 Instance Profile Rolle besitzen. Für Feingranularität lieber eigene Policies anlegen.
+Environment Variables:
+TF_VAR_jwt_secret (SecureString/Sensitive).
+AWS_REGION=eu-central-1.
+Buildspec: „Use a buildspec file“ (das neue buildspec.yml im Repo).
+Output artifacts nicht nötig (Terraform state wird im Backend gehalten).
+Encryption: Standard KMS alias aws/s3 reicht; optional eigenes KMS.
+Logs: CloudWatch Logs aktivieren für Audits.
+9. CodePipeline erstellen
 
-```bash
-# 1. Backend erstellen (kostenlos)
-make backend
+AWS Console → CodePipeline → „Create pipeline“.
+Pipeline settings: Name, Service role (neu oder bestehend).
+Source stage: GitHub (selbe Connection), Branch.
+Build stage: wähle das oben erstellte CodeBuild-Projekt.
+Deploy stage brauchst du nicht, weil CodeBuild via Terraform alles provisioniert und aws s3 sync aufruft.
+Pipeline starten → löst Build aus. Beobachte Logs:
+Installationsphase: Terraform wird heruntergeladen, Node-Module installiert.
+terraform apply läuft in terraform/envs/dev.
+Danach werden video_bucket, api_base_url, load_balancer_dns ausgelesen und S3-Sync durchgeführt.
+10. Outputs prüfen / Smoke-Test
 
-# 2. JWT Secret setzen
-export TF_VAR_jwt_secret=$(openssl rand -base64 32)
+Nach erfolgreichem Run findest du in den Build-Logs:
+Frontend bucket.
+API URL.
+Load balancer.
+Load balancer DNS in Browser öffnen → UI sollte laden (denk an TTL von bis zu 5 min wegen Sync-Timer).
+Testablauf:
+Signup → notiere user_id.
+Login → prüfe, dass Token zurückkommt; Browser speichert JWT im LocalStorage.
+Kommentar senden (content_id frei wählen) → checke Antwort + DynamoDB comments Tabelle.
+CloudWatch Logs der Lambdas (& DynamoDB Tables) prüfen, ob Fehler auftreten.
+11. Sicherheitshärtung
 
-# 3. Deployen (kostenlos)
-make deploy-dev
+IAM Least Privilege: Erstelle dedizierte Policies für CodeBuild statt der FullAccess-Vorlagen. Erlaube nur die Ressourcen/Actions aus Terraform (z. B. S3 nur für deinen Bucket, iam:PassRole nur auf die spezifischen Rollen).
+Admin-Zugriff: admin_cidr immer auf konkrete IPs setzen. Lass Port 22 im ALB-SG geschlossen (nur EC2-SG erlaubt SSH, also auch nur wenn du es brauchst). Entferne SSH komplett, sobald SSM Session Manager ausreicht.
+Secrets: Nutze AWS Secrets Manager oder SSM Parameter Store für TF_VAR_jwt_secret und injiziere ihn in CodeBuild via Parameter.
+Logging: Aktivere CloudWatch Log-Group Retention (Standard 30 Tage) und DynamoDB Streams, wenn ihr Audits braucht.
+Budgets/Alarme: Setze ein AWS Budget (0,01 USD) und Free-Tier-Usage Alert, damit ihr Unikosten im Blick behaltet.
+Lifecycle: Wenn Ressourcen nicht gebraucht werden, terraform -chdir=terraform/envs/dev destroy oder Pipeline deaktivieren, damit Auto Scaling nicht weiter läuft.
+12. Produktionsumgebung
 
-# 4. Testen (kostenlos)
-make outputs-dev
-```
-
-## 5. Kosten überwachen
-
-Gehe zu: https://console.aws.amazon.com/billing/
-- Aktiviere "Free Tier Usage Alerts"
-- Setze Budget-Alerts für 0.01$ (wird dich warnen)
-
-## 6. Cleanup (wichtig!)
-
-Wenn fertig:
-```bash
-make destroy-dev
-```
-
-Das löscht alles und verhindert unerwartete Kosten.
-
-## 💡 Tipps für kostenlos bleiben:
-
-1. **Teste nur kurz** - Deploye nicht dauerhaft
-2. **Überwache Billing** täglich in der ersten Woche
-3. **Verwende kleine Dateien** (< 100MB Videos)
-4. **Mache regelmäßige Cleanups**
-5. **Aktiviere Cost Allocation Tags** in AWS Console
-
-## 🔍 Wo du die Infos findest:
-
-- **AWS Account**: https://aws.amazon.com/free/
-- **IAM Users**: https://console.aws.amazon.com/iam/
-- **Access Keys**: Security Credentials → Access Keys
-- **Billing**: https://console.aws.amazon.com/billing/
-- **Free Tier**: https://aws.amazon.com/free/free-tier-limits/
-
-## 🚨 Wichtig:
-
-- **Speichere Credentials sicher** (nie in Git!)
-- **Teile sie nicht** mit anderen
-- **Rotiere sie regelmäßig** (IAM → Security Credentials)
-- **Überwache Kosten** immer
-
-Bei Fragen: Schaue in AWS Dokumentation oder Free Tier FAQ!
+Wiederhole Schritte 8–11 mit terraform/envs/prod:
+Eigene VPC CIDRs (z. B. 10.31.0.0/16), höhere Instanzgröße (t3.small).
+Getrennte Backend-Pfade (streamflix/prod/terraform.tfstate).
+Eigene CodeBuild-Variante plus Pipeline, oder Parameterisiere Buildspec, falls du Deployments per TF_VAR_env=prod steuern willst.
+Mit dieser Anleitung hast du alle Bausteine: Terraform modelliert S3, DynamoDB, API Gateway, Lambda, VPC, ALB und Auto Scaling; CodePipeline/CodeBuild handeln das automatische Ausrollen und S3-Sync; Security bleibt durch State-Backend, least privilege, IP-Restriktionen und Secret-Handling sauber. Wenn du einzelne Schritte angepasst haben willst (z. B. CloudFront/Route53 vor die ALB), sag Bescheid.

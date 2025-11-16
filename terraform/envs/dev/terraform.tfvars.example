@@ -5,6 +5,20 @@ project    = "streamflix"
 env        = "dev"
 aws_region = "eu-central-1"
 
+vpc_cidr            = "10.21.0.0/16"
+public_subnet_cidrs = ["10.21.0.0/20", "10.21.16.0/20"]
+availability_zones  = ["eu-central-1a", "eu-central-1b"]
+
+# Lock SSH down to your public IP (e.g. "1.2.3.4/32")
+admin_cidr = "0.0.0.0/0"
+
+instance_type     = "t3.micro"
+instance_key_name = null
+desired_capacity  = 2
+min_size          = 2
+max_size          = 4
+video_object_key  = "demo-video.mp4"
+
 # JWT Secret: Set via environment variable TF_VAR_jwt_secret
 # Generate with: openssl rand -base64 32
 # jwt_secret = "your-secret-here"
