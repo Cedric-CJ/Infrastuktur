@@ -1,40 +1,90 @@
 <!doctype html>
-<html lang="en">
+<html lang="de">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Streaming MVP</title>
+  <title>Streamflix – AWS Streaming MVP</title>
   <link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
-  <main class="container">
-    <h1>Streaming MVP</h1>
+  <div class="bg-gradient"></div>
+  <div class="bg-noise"></div>
 
-    <section>
-      <h2>Player</h2>
-      <video id="player" controls width="640" src="REPLACE_WITH_S3_VIDEO_URL"></video>
-      <!-- Example: http://streamflix-site-dev-xyz.s3-website.eu-central-1.amazonaws.com/video.mp4 -->
-    </section>
+  <header class="hero">
+    <div>
+      <p class="eyebrow">YT Clone · AWS Streaming MVP</p>
+      <h1>Streamflix Command Center</h1>
+      <p class="subtitle">
+       ©️ Darian, Philipp und Cedric WiSe 2025/2026 IT‑Infrastruktur.
+      </p>
+    </div>
+    <div class="hero-metrics">
+      <div>
+        <span class="metric grad-cap">100%</span>
+        <span class="label">Infrastructur as Code</span>
+      </div>
+    </div>
+  </header>
 
-    <section id="auth">
-      <h2>Login (Demo)</h2>
-      <input id="email" placeholder="email"/>
-      <input id="password" type="password" placeholder="password"/>
-      <input id="user_id" placeholder="user_id (vom Signup)"/>
-      <div class="actions">
-        <button onclick="signup()">Sign Up</button>
-        <button onclick="login()">Login</button>
+  <main class="layout">
+    <section class="card player-card">
+      <div class="card-header">
+        <span class="badge pulse">LIVE</span>
+        <div>
+          <h2>Streaming Showcase</h2>
+          <p class="muted">Ausgeliefert über ALB + Auto Scaling + S3 Assets</p>
+        </div>
+      </div>
+
+      <div class="slider-thumbs">
+        <button class="thumb active" data-src="https://streamflix-bucket.s3.eu-west-1.amazonaws.com///demo-video.mp4">
+          <span>Demo Highlight</span>
+          <small>demo-video.mp4</small>
+        </button>
+      </div>
+      <div class="player-meta">
+        <div><strong>Format:</strong> Demo-Clip</div>
+        <div><strong>Region:</strong> eu-west-1</div>
+        <div><strong>Delivery:</strong> Nginx on EC2</div>
       </div>
     </section>
 
-    <section>
-      <h2>Neuer Kommentar</h2>
-      <input id="content_id" placeholder="content id"/>
-      <input id="text" placeholder="dein Kommentar"/>
-      <div class="actions">
-        <button onclick="sendComment()">Senden</button>
+    <section class="card auth-card" id="auth">
+      <div class="card-header">
+        <h2>Account Playground</h2>
+        <p class="muted">Sign Up liefert eine <code>user_id</code>, Login speichert das JWT im Browser.</p>
       </div>
-      <pre id="out"></pre>
+      <label class="input-label" for="email">E-Mail</label>
+      <input id="email" placeholder="email@uni.de"/>
+      <label class="input-label" for="password">Passwort</label>
+      <input id="password" type="password" placeholder="••••••••"/>
+      <label class="input-label" for="user_id">User ID (vom Signup)</label>
+      <input id="user_id" placeholder="kopiert aus Signup Response"/>
+      <div class="actions">
+        <button class="btn primary" onclick="signup()">Sign Up</button>
+        <button class="btn ghost" onclick="login()">Login</button>
+      </div>
+    </section>
+
+    <section class="card comment-card">
+      <div class="card-header">
+        <h2>Kommentare &amp; Interaktionen</h2>
+        <p class="muted">Sendet Requests mit eurem JWT an das Comments-API und beobachtet DynamoDB in Echtzeit.</p>
+      </div>
+      <div class="comment-grid">
+        <div>
+          <label class="input-label" for="content_id">Content ID</label>
+          <input id="content_id" placeholder="z. B. trailer-001"/>
+        </div>
+        <div>
+          <label class="input-label" for="text">Kommentar</label>
+          <input id="text" placeholder="Dein Kommentar"/>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn primary" onclick="sendComment()">Kommentar senden</button>
+      </div>
+      <pre id="out">Responses und Fehler erscheinen hier …</pre>
     </section>
   </main>
 
